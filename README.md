@@ -2,7 +2,7 @@
 
 ## Why I picked this
 
-I kept seeing fraud detection projects on GitHub that reported 99% accuracy and called it a day. But the dataset they were all using — the ULB credit card fraud dataset — has fraud in only 0.17% of transactions. A model that literally predicts "not fraud" every single time gets 99.83% accuracy. That's not a model, that's just saying no to everything.
+I kept seeing fraud detection projects on GitHub that reported 99% accuracy and called it a day. But the dataset they were all using, the ULB credit card fraud dataset — has fraud in only 0.17% of transactions. A model that literally predicts "not fraud" every single time gets 99.83% accuracy. That's not a model, that's just saying no to everything.
 
 I wanted to build something that actually answers the question a fraud team asks in real life: given that we can only review a certain number of flagged transactions per day, which ones should we look at, and at what point does flagging more transactions start costing us more than it saves?
 
@@ -15,7 +15,7 @@ The other thing real fraud systems deal with: a false positive (flagging a good 
 ## What I built
 
 - Trained an **XGBoost model** with `scale_pos_weight` to handle the class imbalance, benchmarked against a logistic regression baseline
-- Added a **rules layer** alongside the model (a simple amount threshold), because real fraud stacks always combine ML with rules — never just one
+- Added a **rules layer** alongside the model (a simple amount threshold), because real fraud stacks always combine ML with rules, its never just one
 - Evaluated on **AUPRC and Precision@k**, not accuracy
 - Used **SHAP** to explain which features drive each score — fraud decisions need to be explainable to compliance
 - Built a **Streamlit dashboard** where you can move a slider for review capacity and adjust the cost assumptions, and it recalculates net savings in real time
@@ -30,7 +30,7 @@ The other thing real fraud systems deal with: a false positive (flagging a good 
 | Net savings at that point | $11,492 per 85,443-transaction test window |
 | False positives vs. rules-only baseline (at matched recall) | 31 vs. 80,223 |
 
-The false-positive comparison is the one I find most interesting — a simple amount-threshold rule that's tuned to catch 80% of fraud has to flag nearly the entire test set to do it. The model gets there with 31 false positives.
+The false-positive comparison is the one I find most interesting like a simple amount-threshold rule that's tuned to catch 80% of fraud has to flag nearly the entire test set to do it. The model gets there with 31 false positives.
 
 ## How to run it
 
@@ -57,4 +57,4 @@ The raw dataset (`creditcard.csv`, ~144MB) isn't in the repo — you can downloa
 
 - I used a random stratified train/test split, not time-based. In production you'd always split by time so you're not accidentally training on future data.
 - The dollar figures are per test window (2 days of transactions in the dataset), not annualized.
-- The 99.96% false-positive reduction against the rules baseline sounds dramatic, but it's a genuine finding about how bad single-variable rules are when you push them to high recall — not something I'm inflating.
+- The 99.96% false-positive reduction against the rules baseline sounds dramatic, but it's a genuine finding about how bad single-variable rules are when you push them to high recall, not something I'm inflating.
