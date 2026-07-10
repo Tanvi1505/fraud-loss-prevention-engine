@@ -1,56 +1,60 @@
 # Credit Risk & Fraud Loss Prevention Engine
 
-Fraud transaction scoring built around a real business tradeoff: catching fraud at the lowest cost to good customers, not just maximizing detection. Framed for a subprime-issuer Risk/Fraud Strategy context, where a false decline risks losing the customer relationship entirely.
+## Why I picked this
 
-## The problem
+I kept seeing fraud detection projects on GitHub that reported 99% accuracy and called it a day. But the dataset they were all using — the ULB credit card fraud dataset — has fraud in only 0.17% of transactions. A model that literally predicts "not fraud" every single time gets 99.83% accuracy. That's not a model, that's just saying no to everything.
 
-Accuracy is meaningless when fraud is 0.17% of transactions — a model that predicts "not fraud" every time is 99.83% accurate and useless. The real question a fraud strategy team asks isn't "did we catch it," it's: **given a fixed review capacity, where's the operating point that maximizes net savings?**
+I wanted to build something that actually answers the question a fraud team asks in real life: given that we can only review a certain number of flagged transactions per day, which ones should we look at, and at what point does flagging more transactions start costing us more than it saves?
 
-## Approach
+## What the problem actually is
 
-- **Dataset**: [ULB/Worldline Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) — 284,807 European cardholder transactions, 492 fraud (0.17%)
-- **Model**: XGBoost with class weighting (`scale_pos_weight`), benchmarked against a logistic regression baseline
-- **Rules layer**: an amount-threshold rule simulating a legacy fraud system, run alongside the model — real fraud stacks are always ML + rules, never ML alone
-- **Evaluation**: Precision@k (maps directly to analyst review capacity) and AUPRC, not accuracy or plain ROC-AUC, since those are misleading at this class imbalance
-- **Cost framework**: explicit dollar assumptions for false-decline cost and manual review cost, swept across review-capacity budgets to find the net-savings-optimal operating point
-- **Explainability**: SHAP feature attribution, since fraud flags need to be defensible to compliance/audit
+When fraud is this rare, the standard metrics break. Accuracy is useless. Even AUC-ROC can look great while your model still lets through most fraud. The metric that actually matters here is **precision at k** — out of the top k transactions your model flags, how many are actually fraud? Because k is your review team's capacity. You can't review 80,000 transactions a day.
+
+The other thing real fraud systems deal with: a false positive (flagging a good customer) isn't free. For a subprime card issuer especially, a false decline can end the customer relationship. So I built in a cost framework — you put in what a false decline costs you and what a manual review costs, and the dashboard shows you where the net savings peak before the false-positive costs eat into them.
+
+## What I built
+
+- Trained an **XGBoost model** with `scale_pos_weight` to handle the class imbalance, benchmarked against a logistic regression baseline
+- Added a **rules layer** alongside the model (a simple amount threshold), because real fraud stacks always combine ML with rules — never just one
+- Evaluated on **AUPRC and Precision@k**, not accuracy
+- Used **SHAP** to explain which features drive each score — fraud decisions need to be explainable to compliance
+- Built a **Streamlit dashboard** where you can move a slider for review capacity and adjust the cost assumptions, and it recalculates net savings in real time
 
 ## Results
 
-| Metric | Value |
+| Metric | Result |
 |---|---|
-| XGBoost AUPRC | 0.83 (vs. 0.70 logistic regression baseline) |
-| Precision@100 | 98.0% |
-| Optimal review budget | Top-150 flagged transactions |
-| Net savings at optimal budget | $11,492.73 per 85,443-transaction test window |
-| False-positive reduction vs. rules-only baseline (matched 80% recall) | 99.96% (31 vs. 80,223 false positives) |
-| Top SHAP drivers | V4, V14, V12 |
+| XGBoost AUPRC | 0.83 (logistic regression baseline: 0.70) |
+| Precision at top 100 | 98% |
+| Optimal review budget | Top 150 flagged transactions |
+| Net savings at that point | $11,492 per 85,443-transaction test window |
+| False positives vs. rules-only baseline (at matched recall) | 31 vs. 80,223 |
 
-**Stated cost assumptions**: $15 per false decline, $2 per manual review — adjustable in the dashboard.
+The false-positive comparison is the one I find most interesting — a simple amount-threshold rule that's tuned to catch 80% of fraud has to flag nearly the entire test set to do it. The model gets there with 31 false positives.
 
-## Try it
+## How to run it
 
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Adjust the review-capacity slider and cost assumptions to see how the net-savings-optimal operating point shifts in real time.
+The dashboard loads precomputed scores so it doesn't retrain anything. Move the sliders to see how the optimal review point shifts under different cost assumptions.
 
-## Repo structure
+## Files
 
 ```
-├── fraud_detection_analysis.ipynb   # Full analysis: EDA, modeling, cost framework, SHAP
+├── fraud_detection_analysis.ipynb   # full walkthrough: EDA, model, cost framework, SHAP
 ├── app.py                           # Streamlit dashboard
-├── scored_test_set.csv              # Precomputed model scores (dashboard doesn't retrain live)
+├── scored_test_set.csv              # precomputed scores (so the dashboard runs without the raw data)
 ├── requirements.txt
 └── README.md
 ```
 
-Note: `creditcard.csv` (~144MB) isn't included in this repo due to size — download it from [Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) and place it in the root folder if you want to rerun the notebook from scratch.
+The raw dataset (`creditcard.csv`, ~144MB) isn't in the repo — you can download it from [Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) and drop it in the root folder if you want to rerun the notebook.
 
-## Honest limitations
+## Honest caveats
 
-- Train/test split is random-stratified, not time-based — a production system should split by time to avoid leakage
-- Dollar figures are per test window (85K transactions over the dataset's 2-day span), not annualized
-- The 99.96% false-positive reduction reflects how weak a single-variable amount rule is at high recall (it has to flag nearly the entire test set) — this is a genuine finding about legacy rule systems, not an artifact to hide
+- I used a random stratified train/test split, not time-based. In production you'd always split by time so you're not accidentally training on future data.
+- The dollar figures are per test window (2 days of transactions in the dataset), not annualized.
+- The 99.96% false-positive reduction against the rules baseline sounds dramatic, but it's a genuine finding about how bad single-variable rules are when you push them to high recall — not something I'm inflating.
